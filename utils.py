@@ -20,8 +20,7 @@ import tensorflow as tf
 
 class MapillaryGenerator(Sequence):
     def __init__(self, folder='datasets/mapillary', mode='training', n_classes=66, batch_size=1, resize_shape=None,
-                 crop_shape=(640, 320), horizontal_flip=True, vertical_flip=False, brightness=0.1, rotation=5.0, zoom=0.1
-                 remap=None):
+                 crop_shape=(640, 320), horizontal_flip=True, vertical_flip=False, brightness=0.1, rotation=5.0, zoom=0.1, remap=None):
 
         self.image_path_list = sorted(glob.glob(os.path.join(folder, mode, 'images/*')))
         self.label_path_list = sorted(glob.glob(os.path.join(folder, mode, 'instances/*')))
@@ -59,13 +58,13 @@ class MapillaryGenerator(Sequence):
 
     def __remap__(self, label):
         # label[label == thing] = new_thing
-        new_classes = list(self.remap)
+        new_classes = [v for k,v in self.remap.items()]
         new_label = np.zeros(label.shape)
-        for i in range(self.n_classes):
-            new_label[label in new_labels[i]] = i+1
+        for i in range(len(new_classes)):
+            for l in new_classes[i]:
+                new_label[label == l] = i+1
 
         return new_label
-
 
     def __getitem__(self, i):
         for n, (image_path, label_path) in enumerate(zip(self.image_path_list[i*self.batch_size:(i+1)*self.batch_size],
