@@ -17,15 +17,20 @@ from keras.utils.data_utils import Sequence
 from keras import backend as K
 
 import tensorflow as tf
-        
+
 class MapillaryGenerator(Sequence):
-    def __init__(self, folder='datasets/mapillary', mode='training', n_classes=66, batch_size=1, resize_shape=None, 
-                 crop_shape=(640, 320), horizontal_flip=True, vertical_flip=False, brightness=0.1, rotation=5.0, zoom=0.1):
+    def __init__(self, folder='datasets/mapillary', mode='training', n_classes=66, batch_size=1, resize_shape=None,
+                 crop_shape=(640, 320), horizontal_flip=True, vertical_flip=False, brightness=0.1, rotation=5.0, zoom=0.1
+                 remap=None):
 
         self.image_path_list = sorted(glob.glob(os.path.join(folder, mode, 'images/*')))
         self.label_path_list = sorted(glob.glob(os.path.join(folder, mode, 'instances/*')))
         self.mode = mode
-        self.n_classes = n_classes
+        self.remap = remap
+        if remap is None:
+            self.n_classes = 66
+        else:
+            self.n_classes = len(remap) + 1
         self.batch_size = batch_size
         self.resize_shape = resize_shape
         self.crop_shape = crop_shape
@@ -34,7 +39,7 @@ class MapillaryGenerator(Sequence):
         self.brightness = brightness
         self.rotation = rotation
         self.zoom = zoom
-        
+
         # Preallocate memory
         if mode == 'training' and self.crop_shape:
             self.X = np.zeros((batch_size, crop_shape[1], crop_shape[0], 3), dtype='float32')
@@ -48,16 +53,29 @@ class MapillaryGenerator(Sequence):
             self.Y3 = np.zeros((batch_size, resize_shape[1]//16, resize_shape[0]//16, self.n_classes), dtype='float32')
         else:
             raise Exception('No image dimensions specified!')
-        
+
     def __len__(self):
         return len(self.image_path_list) // self.batch_size
-        
-    def __getitem__(self, i):        
-        for n, (image_path, label_path) in enumerate(zip(self.image_path_list[i*self.batch_size:(i+1)*self.batch_size], 
+
+    def __remap__(self, label):
+        # label[label == thing] = new_thing
+        new_classes = list(self.remap)
+        new_label = np.zeros(label.shape)
+        for i in range(self.n_classes):
+            new_label[label in new_labels[i]] = i+1
+
+        return new_label
+
+
+    def __getitem__(self, i):
+        for n, (image_path, label_path) in enumerate(zip(self.image_path_list[i*self.batch_size:(i+1)*self.batch_size],
                                                         self.label_path_list[i*self.batch_size:(i+1)*self.batch_size])):
 
             image = cv2.imread(image_path, 1)
             label = cv2.imread(label_path, 0)
+            if self.n_classes != 66:
+                label = self.__remap__(label)
+
             if self.resize_shape:
                 image = cv2.resize(image, self.resize_shape)
                 label = cv2.resize(label, self.resize_shape)
@@ -92,12 +110,12 @@ class MapillaryGenerator(Sequence):
                     image, label = _random_crop(image, label, self.crop_shape)
 
             self.X[n] = image
-            self.Y1[n] = to_categorical(cv2.resize(label, (label.shape[1]//4, label.shape[0]//4)), self.n_classes).reshape((label.shape[0]//4, label.shape[1]//4, -1))   
+            self.Y1[n] = to_categorical(cv2.resize(label, (label.shape[1]//4, label.shape[0]//4)), self.n_classes).reshape((label.shape[0]//4, label.shape[1]//4, -1))
             self.Y2[n] = to_categorical(cv2.resize(label, (label.shape[1]//8, label.shape[0]//8)), self.n_classes).reshape((label.shape[0]//8, label.shape[1]//8, -1))
-            self.Y3[n] = to_categorical(cv2.resize(label, (label.shape[1]//16, label.shape[0]//16)), self.n_classes).reshape((label.shape[0]//16, label.shape[1]//16, -1))         
-        
+            self.Y3[n] = to_categorical(cv2.resize(label, (label.shape[1]//16, label.shape[0]//16)), self.n_classes).reshape((label.shape[0]//16, label.shape[1]//16, -1))
+
         return self.X, [self.Y1, self.Y2, self.Y3]
-        
+
     def on_epoch_end(self):
         # Shuffle dataset for next epoch
         c = list(zip(self.image_path_list, self.label_path_list))
@@ -106,7 +124,7 @@ class MapillaryGenerator(Sequence):
 
         # Fix memory leak (Keras bug)
         gc.collect()
-                
+
 class Visualization(Callback):
     def __init__(self, resize_shape=(640, 320), batch_steps=10, n_gpu=1, **kwargs):
         super(Visualization, self).__init__(**kwargs)
@@ -120,19 +138,19 @@ class Visualization(Callback):
         with open('datasets/mapillary/config.json') as config_file:
             config = json.load(config_file)
         self.labels = config['labels']
-        
-        
+
+
     def on_batch_end(self, batch, logs={}):
         self.counter += 1
-        
+
         if self.counter == self.batch_steps:
             self.counter = 0
-            
+
             test_image = cv2.resize(cv2.imread(random.choice(self.test_images_list), 1), self.resize_shape)
-            
-            inputs = [test_image]*self.n_gpu          
+
+            inputs = [test_image]*self.n_gpu
             output, _, _ = self.model.predict(np.array(inputs), batch_size=self.n_gpu)
-        
+
             cv2.imshow('input', test_image)
             cv2.waitKey(1)
             cv2.imshow('output', apply_color_map(np.argmax(output[0], axis=-1), self.labels))
@@ -143,18 +161,18 @@ class PolyDecay:
         self.initial_lr = initial_lr
         self.power = power
         self.n_epochs = n_epochs
-    
+
     def scheduler(self, epoch):
         return self.initial_lr * np.power(1.0 - 1.0*epoch/self.n_epochs, self.power)
-            
+
 class ExpDecay:
     def __init__(self, initial_lr, decay):
         self.initial_lr = initial_lr
         self.decay = decay
-    
+
     def scheduler(self, epoch):
         return self.initial_lr * np.exp(-self.decay*epoch)
-    
+
 # Taken from Mappillary Vistas demo.py
 def apply_color_map(image_array, labels):
     color_array = np.zeros((image_array.shape[0], image_array.shape[1], 3), dtype=np.uint8)
@@ -164,15 +182,15 @@ def apply_color_map(image_array, labels):
         color_array[image_array == label_id] = label["color"]
 
     return color_array
-    
+
 def _random_crop(image, label, crop_shape):
     if (image.shape[0] != label.shape[0]) or (image.shape[1] != label.shape[1]):
         raise Exception('Image and label must have the same dimensions!')
-        
+
     if (crop_shape[0] < image.shape[1]) and (crop_shape[1] < image.shape[0]):
         x = random.randrange(image.shape[1]-crop_shape[0])
         y = random.randrange(image.shape[0]-crop_shape[1])
-        
+
         return image[y:y+crop_shape[1], x:x+crop_shape[0], :], label[y:y+crop_shape[1], x:x+crop_shape[0]]
     else:
         raise Exception('Crop shape exceeds image dimensions!')
