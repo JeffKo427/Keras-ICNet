@@ -3,6 +3,7 @@
 import argparse
 import time
 import json
+import pickle
 
 import numpy as np
 from keras import backend as K
@@ -16,6 +17,7 @@ from utils import apply_color_map
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', type=str, default=None, help='path to model checkpoint')
 parser.add_argument('--test_image', type=str, default='output/input_sample.jpg', help='path to input test image')
+parser.add_argument('-r', '--remap', action='store_true')
 opt = parser.parse_args()
 
 print(opt)
@@ -47,9 +49,12 @@ duration = time.time() - start_time
 print('Generated segmentations in %s seconds -- %s FPS' % (duration, 1.0/duration))
 
 # Save output image
-with open('datasets/mapillary/config.json') as config_file:
-    config = json.load(config_file)
-labels = config['labels']
+if opt.remap:
+    labels = pickle.load('custom_labels.pkl')
+else:
+    with open('datasets/mapillary/config.json') as config_file:
+        config = json.load(config_file)
+    labels = config['labels']
 
 output = apply_color_map(np.argmax(y[0], axis=-1), labels)
 cv2.imwrite('output/output_sample.png', cv2.resize(output, (image_width, image_height)))
