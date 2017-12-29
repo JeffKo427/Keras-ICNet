@@ -44,8 +44,12 @@ tensorboard = TensorBoard(batch_size=opt.batch_size)
 lr_decay = LearningRateScheduler(PolyDecay(opt.lr, opt.decay, opt.n_epochs).scheduler)
 
 # Generators
-train_generator = MapillaryGenerator(batch_size=opt.batch_size, crop_shape=(opt.image_width, opt.image_height))
-val_generator = MapillaryGenerator(mode='validation', batch_size=opt.batch_size, crop_shape=None, resize_shape=(opt.image_width, opt.image_height))
+remap = {13: [7, 8, 9, 10, 11, 12, 13, 14, 15],             # Driveable Area
+         24: [23, 24],                                      # Lane Lines
+         55: [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62],  # Vehicles
+         27: [27]}                                          # Sky
+train_generator = MapillaryGenerator(batch_size=opt.batch_size, crop_shape=(opt.image_width, opt.image_height), remap=remap)
+val_generator = MapillaryGenerator(mode='validation', batch_size=opt.batch_size, crop_shape=None, resize_shape=(opt.image_width, opt.image_height), remap=remap)
 
 # Optimizer
 optim = optimizers.SGD(lr=opt.lr, momentum=0.9)
@@ -54,7 +58,7 @@ optim = optimizers.SGD(lr=opt.lr, momentum=0.9)
 if opt.checkpoint:
     net = load_model(opt.checkpoint)
 else:
-    net = model.build_bn(opt.image_width, opt.image_height, 66, train=True)
+    net = model.build_bn(opt.image_width, opt.image_height, len(remap) + 1, train=True)
 if opt.n_gpu > 1:
     net = multi_gpu_model(net, opt.n_gpu)
 
