@@ -73,7 +73,7 @@ class MapillaryGenerator(Sequence):
 
             image = cv2.imread(image_path, 1)
             label = cv2.imread(label_path, 0)
-            if self.n_classes != 66:
+            if self.remap is not None:
                 label = self.__remap__(label)
 
             if self.resize_shape:
