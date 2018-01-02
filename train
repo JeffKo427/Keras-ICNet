@@ -80,7 +80,7 @@ if opt.n_gpu > 1:
     net = multi_gpu_model(net, opt.n_gpu)
 
 # Training
-net.compile(optim, 'categorical_crossentropy', loss_weights=[1.0, 0.4, 0.16], metrics=['categorical_accuracy'])
+net.compile(optim, 'categorical_crossentropy', loss_weights=[1.0, 0.4, 0.16], metrics=[model.mean_iou])
 net.fit_generator(train_generator, len(train_generator), opt.n_epochs, callbacks=[checkpoint, tensorboard, lr_decay], 
                     validation_data=val_generator, validation_steps=len(val_generator), workers=opt.n_cpu, 
                     use_multiprocessing=False, shuffle=True, max_queue_size=10, initial_epoch=opt.epoch)                   
