@@ -14,13 +14,6 @@ from keras.models import Model
 import tensorflow as tf
 from keras import backend as K
 
-def mean_iou(y_true, y_pred):
-   score, up_opt = tf.metrics.mean_iou(y_true, y_pred, NUM_CLASSES)
-   K.get_session().run(tf.local_variables_initializer())
-   with tf.control_dependencies([up_opt]):
-       score = tf.identity(score)
-   return score
-
 def build(width, height, n_classes, weights_path=None, train=False):
     inp = Input(shape=(height, width, 3))
     x = Lambda(lambda x: (x - 127.5)/255.0)(inp)
