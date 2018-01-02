@@ -28,7 +28,7 @@ parser.add_argument('--n_gpu', type=int, default=1, help='number of GPUs to use'
 parser.add_argument('--n_cpu', type=int, default=8, help='number of CPU threads to use during data generation')
 parser.add_argument('--checkpoint', type=str, default=None, help='path to model checkpoint to resume training')
 parser.add_argument('--epoch', type=int, default=0, help='epoch to start training')
-parser.add_argument('-r, --remap', action='store_true')
+parser.add_argument('-r', '--remap', action='store_true')
 opt = parser.parse_args()
 
 print(opt)
@@ -36,9 +36,9 @@ print(opt)
 #### Train ####
 
 # Workaround to forbid tensorflow from crashing the gpu
-config = tf.ConfigProto()
+config = K.tf.ConfigProto()
 config.gpu_options.allow_growth = True
-sess = tf.Session(config=config)
+sess = K.tf.Session(config=config)
 K.set_session(sess)
 
 # Callbacks
@@ -52,13 +52,18 @@ if opt.remap:
              24: [23, 24],                                      # Lane Lines
              55: [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62],  # Vehicles
              27: [27]}                                          # Sky
-    with open('datasets.mapillary/config.json') as config_file:
+    n_classes = len(remap) + 1
+    with open('datasets/mapillary/config.json') as config_file:
         config = json.load(config_file)
     labels = config['labels']
-    custom_labels = [[0,0,0]]
+    custom_labels = [{'color':[0,0,0]}]
     for k,v in remap.items():
-        custom_labels.append(labels[k])
-    pickle.dump(custom_labels, 'custom_labels.pkl')
+        custom_labels.append({'color':labels[k]['color']})
+    with open('custom_labels.pkl', 'wb') as lfile:
+        pickle.dump(custom_labels, lfile)
+else:
+    remap = None
+    n_classes = 66
 
 train_generator = MapillaryGenerator(batch_size=opt.batch_size, crop_shape=(opt.image_width, opt.image_height), remap=remap)
 val_generator = MapillaryGenerator(mode='validation', batch_size=opt.batch_size, crop_shape=None, resize_shape=(opt.image_width, opt.image_height), remap=remap)
@@ -68,9 +73,9 @@ optim = optimizers.SGD(lr=opt.lr, momentum=0.9)
 
 # Model
 if opt.checkpoint:
-    net = load_model(opt.checkpoint)
+    net = load_model(opt.checkpoint, custom_objects={'tf':tf})
 else:
-    net = model.build_bn(opt.image_width, opt.image_height, len(remap) + 1, train=True)
+    net = model.build_bn(opt.image_width, opt.image_height, n_classes, train=True)
 if opt.n_gpu > 1:
     net = multi_gpu_model(net, opt.n_gpu)
 

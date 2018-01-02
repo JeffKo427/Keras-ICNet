@@ -6,10 +6,10 @@ import json
 import pickle
 
 import numpy as np
-from keras import backend as K
 from keras.utils import multi_gpu_model
 from keras.models import load_model
 import tensorflow as tf
+from keras import backend as K
 import cv2
 
 from utils import apply_color_map
@@ -25,14 +25,13 @@ print(opt)
 #### Test ####
 
 # Workaround to forbid tensorflow from crashing the gpu
-config = tf.ConfigProto()
+config = K.tf.ConfigProto()
 config.gpu_options.allow_growth = True
-sess = tf.Session(config=config)
+sess = K.tf.Session(config=config)
 K.set_session(sess)
-
 # Model
 if opt.checkpoint:
-    net = load_model(opt.checkpoint)
+    net = load_model(opt.checkpoint, custom_objects={'tf':tf})
 else:
     print('No checkpoint specified! Set it with the --checkpoint argument option')
     exit()
@@ -50,12 +49,13 @@ print('Generated segmentations in %s seconds -- %s FPS' % (duration, 1.0/duratio
 
 # Save output image
 if opt.remap:
-    labels = pickle.load('custom_labels.pkl')
+    with open('custom_labels.pkl', 'rb') as f:
+        labels = pickle.load(f)
 else:
     with open('datasets/mapillary/config.json') as config_file:
         config = json.load(config_file)
     labels = config['labels']
 
-output = apply_color_map(np.argmax(y[0], axis=-1), labels)
-cv2.imwrite('output/output_sample.png', cv2.resize(output, (image_width, image_height)))
+output = apply_color_map(np.argmax(y[0][0], axis=-1), labels)
+cv2.imwrite('output/output_sample.png', cv2.resize(output, (image_height, image_width))[...,::-1])
 ###############
