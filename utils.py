@@ -18,6 +18,8 @@ from keras import backend as K
 
 import tensorflow as tf
 
+random.seed(1337)
+
 class MapillaryGenerator(Sequence):
     def __init__(self, folder='datasets/mapillary', mode='training', n_classes=66, batch_size=1, resize_shape=None,
                  crop_shape=(640, 320), horizontal_flip=True, vertical_flip=False, brightness=0.1, rotation=5.0, zoom=0.1, remap=None):

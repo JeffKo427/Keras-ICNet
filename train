@@ -61,6 +61,8 @@ if opt.remap:
         custom_labels.append({'color':labels[k]['color']})
     with open('custom_labels.pkl', 'wb') as lfile:
         pickle.dump(custom_labels, lfile)
+    with open('remap.pkl', 'wb') as rfile:
+        pickle.dump(remap, rfile)
 else:
     remap = None
     n_classes = 66
@@ -87,7 +89,7 @@ def mean_iou(y_true, y_pred):
    return score
 
 # Training
-net.compile(optim, 'categorical_crossentropy', loss_weights=[1.0, 0.4, 0.16], metrics=[mean_iou])
+net.compile(optim, 'categorical_crossentropy', loss_weights=[1.0, 0.4, 0.16], metrics=['categorical_accuracy', mean_iou])
 net.fit_generator(train_generator, len(train_generator), opt.n_epochs, callbacks=[checkpoint, tensorboard, lr_decay], 
                     validation_data=val_generator, validation_steps=len(val_generator), workers=opt.n_cpu, 
                     use_multiprocessing=False, shuffle=True, max_queue_size=10, initial_epoch=opt.epoch)                   

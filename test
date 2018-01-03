@@ -13,6 +13,7 @@ from keras import backend as K
 import cv2
 
 from utils import apply_color_map
+from utils import MapillaryGenerator
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', type=str, default=None, help='path to model checkpoint')
@@ -37,25 +38,36 @@ else:
     exit()
 
 # Testing
-image_height = net.inputs[0].shape[2]
-image_width = net.inputs[0].shape[1]
-x = np.array([cv2.resize(cv2.imread(opt.test_image, 1), (image_height, image_width))])
+image_width = int(net.inputs[0].shape[2])
+image_height = int(net.inputs[0].shape[1])
 
-start_time = time.time()
-y = net.predict(np.array(x), batch_size=1)
-duration = time.time() - start_time
 
-print('Generated segmentations in %s seconds -- %s FPS' % (duration, 1.0/duration))
-
-# Save output image
 if opt.remap:
     with open('custom_labels.pkl', 'rb') as f:
         labels = pickle.load(f)
+    with open('remap.pkl', 'rb') as f:
+        remap = pickle.load(f)
 else:
     with open('datasets/mapillary/config.json') as config_file:
         config = json.load(config_file)
     labels = config['labels']
+    remap = None
 
-output = apply_color_map(np.argmax(y[0][0], axis=-1), labels)
-cv2.imwrite('output/output_sample.png', cv2.resize(output, (image_height, image_width))[...,::-1])
+generator = MapillaryGenerator(batch_size=1, crop_shape=(image_width, image_height), remap=remap)
+
+start_time = time.time()
+count = 0
+max_count = 500
+for x, y_true in generator:
+    y = net.predict_on_batch(x)
+    output = apply_color_map(np.argmax(y[0][0], axis=-1), labels)
+    cv2.imwrite('samples/' + str(count) + 'x.png', x[0])
+    cv2.imwrite('samples/' + str(count) + 'y.png', cv2.resize(output, (image_width, image_height))[...,::-1])
+    count += 1
+    if count > max_count:
+        break
+duration = time.time() - start_time
+
+print('Generated segmentations in %s seconds -- %s FPS' % (duration, float(max_count)/duration))
+
 ###############
