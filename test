@@ -60,10 +60,17 @@ count = 0
 max_count = 500
 for x, y_true in generator:
     y = net.predict_on_batch(x)
+    iou, opt = tf.metrics.mean_iou(
     output = apply_color_map(np.argmax(y[0][0], axis=-1), labels)
     cv2.imwrite('samples/' + str(count) + 'x.png', x[0])
     cv2.imwrite('samples/' + str(count) + 'y.png', cv2.resize(output, (image_width, image_height))[...,::-1])
     count += 1
+    score, opt = tf.metrics.mean_iou(y_true, y_pred, 66)
+    K.get_session().run(tf.local_variables_initializer())
+    tf.global_variables_initializer.run()
+    tf.local_variables_initializer().run()
+    opt.eval()
+    print(iou.eval())
     if count > max_count:
         break
 duration = time.time() - start_time
