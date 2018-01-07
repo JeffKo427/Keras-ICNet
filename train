@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import pickle
 
 from keras import optimizers
@@ -29,9 +30,13 @@ parser.add_argument('--n_cpu', type=int, default=8, help='number of CPU threads 
 parser.add_argument('--checkpoint', type=str, default=None, help='path to model checkpoint to resume training')
 parser.add_argument('--epoch', type=int, default=0, help='epoch to start training')
 parser.add_argument('-r', '--remap', action='store_true')
+parser.add_argument('--GPU', type=str, default='0', help='which GPU to train on (probably 0 or 1)')
 opt = parser.parse_args()
 
 print(opt)
+
+if opt.n_gpu == 1:
+    os.environ["CUDA_VISIBLE_DEVICES"] = opt.GPU
 
 #### Train ####
 
@@ -74,10 +79,16 @@ val_generator = MapillaryGenerator(mode='validation', batch_size=opt.batch_size,
 optim = optimizers.SGD(lr=opt.lr, momentum=0.9)
 
 # Model
+net = model.build_bn(opt.image_width, opt.image_height, n_classes, train=True)
 if opt.checkpoint:
-    net = load_model(opt.checkpoint, custom_objects={'tf':tf})
-else:
-    net = model.build_bn(opt.image_width, opt.image_height, n_classes, train=True)
+    weights = load_model(opt.checkpoint, custom_objects={'tf':tf}).get_weights()
+    for i, w in enumerate(weights):
+        try:
+            net.layers[i].set_weights(weights)
+        except:
+            pass
+
+    
 if opt.n_gpu > 1:
     net = multi_gpu_model(net, opt.n_gpu)
 
