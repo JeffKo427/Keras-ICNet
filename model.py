@@ -13,6 +13,28 @@ from keras.models import Model
 import tensorflow as tf
 from keras import backend as K
 
+class PyramidPool(Layer):
+
+    def __init__(self, levels, **kwargs):
+        self.levels = levels
+        super(PyramidPool, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.shape = input_shape
+        super(PyramidPool, self).build(input_shape)
+
+    def call(self, x):
+        h, w = self.shape[1:3]
+        for l in levels:
+            pool = K.pool2d(x, pool_size=(h // l, w // l), strides=(h // l, w // l), padding='valid', data_format=None, pool_mode='max')
+            pool = K.resize_images(x, h * l, w * l, data_format='channels_last')
+            x += pool
+        return x
+
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
 def build_bn(width, height, n_classes, weights_path=None, train=False):
     inp = Input(shape=(None, None, 3))
     x = Lambda(lambda x: (x - 127.5)/255.0)(inp)
@@ -197,17 +219,9 @@ def build_bn(width, height, n_classes, weights_path=None, train=False):
     y = Add(name='conv5_3')([y,y_])
     y = Activation('relu', name='conv5_3/relu')(y)
 
-    h, w = K.int_shape(y)[1:3]
-    pool1 = AveragePooling2D(pool_size=(h,w), strides=(h,w), name='conv5_3_pool1')(y)
-    pool1 = Lambda(lambda x: K.tf.image.resize_bilinear(x, size=(h,w)), name='conv5_3_pool1_interp')(pool1)
-    pool2 = AveragePooling2D(pool_size=(h/2,w/2), strides=(h//2,w//2), name='conv5_3_pool2')(y)
-    pool2 = Lambda(lambda x: K.tf.image.resize_bilinear(x, size=(h,w)), name='conv5_3_pool2_interp')(pool2)
-    pool3 = AveragePooling2D(pool_size=(h/3,w/3), strides=(h//3,w//3), name='conv5_3_pool3')(y)
-    pool3 = Lambda(lambda x: K.tf.image.resize_bilinear(x, size=(h,w)), name='conv5_3_pool3_interp')(pool3)
-    pool6 = AveragePooling2D(pool_size=(h/4,w/4), strides=(h//4,w//4), name='conv5_3_pool6')(y)
-    pool6 = Lambda(lambda x: K.tf.image.resize_bilinear(x, size=(h,w)), name='conv5_3_pool6_interp')(pool6)
+    # Pyramid Pooling was here.
 
-    y = Add(name='conv5_3_sum')([y, pool1, pool2, pool3, pool6])
+    y = PyramidPooling2D((1,2,3,6))(y)
     y = Conv2D(256, 1, activation='relu', name='conv5_4_k1')(y)
     y = BatchNormalization(name='conv5_4_k1_bn')(y)
     aux_1 = Lambda(lambda x: K.resize_images(x, 2, 2, data_format='channels_last'), name='conv5_4_interp')(y)
